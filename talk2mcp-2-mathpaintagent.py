@@ -286,33 +286,11 @@ Your entire response should be a single line starting with either FUNCTION_CALL:
                         print("\n=== Math Agent Execution Complete ===")
                         math_result = response_text.split("[")[1].split("]")[0]
                         print(f"Final math result: {math_result}")
-
-                        # Send email with results
-                        email_content = {
-                            "subject": "Math Operation Results",
-                            "message": f"""
-Math Operation Results:
-----------------------
-Final Result: {math_result}
-
-Operation History:
-----------------
-{chr(10).join(iteration_response)}
-
-This is an automated email from your Math Agent.""",
-                            "to": "pavanmd28@gmail.com",
-                            "cc": ["pavanmd56@gmail.com"]
-                        }
-
-                        try:
-                            email_result = await session.call_tool("send_email", email_content)
-                            print(f"Email sent: {email_result.content[0].text}")
-                        except Exception as e:
-                            print(f"Failed to send email: {str(e)}")
-                            traceback.print_exc()
                         
                         # Start Paint Agent
                         print("\n=== Starting Paint Agent ===")
+                        print(f"Math result to be displayed: {math_result}")
+
                         paint_system_prompt = f"""You are a Paint controller agent. Your task is to perform these actions in sequence:
                         1. Open Paint application
                         2. Draw a rectangle with coordinates (780,380,1140,700)
@@ -332,27 +310,35 @@ This is an automated email from your Math Agent.""",
                         max_paint_iterations = 4
 
                         while iteration < max_paint_iterations:
+                            print(f"\n--- Paint Agent Iteration {iteration + 1}/{max_paint_iterations} ---")
+                            
                             if last_response is None:
                                 paint_query = "Step 1: Open Paint application"
+                                print("Executing: Opening Paint")
                             elif last_response == "Paint opened":
                                 paint_query = "Step 2: Draw rectangle in Paint"
+                                print("Executing: Drawing Rectangle")
                             elif last_response == "Rectangle drawn":
                                 paint_query = f"Step 3: Add text '{math_result}' in Paint"
+                                print("Executing: Adding Text")
                             
                             paint_prompt = f"{paint_system_prompt}\n\nYour task: {paint_query}"
                             paint_response = await generate_with_timeout(paint_prompt)
                             paint_response_text = paint_response.text.strip()
+                            print(f"Paint Agent Response: {paint_response_text}")
 
                             if paint_response_text.startswith("PAINT_OP:"):
                                 _, paint_command = paint_response_text.split(":", 1)
                                 command_parts = [p.strip() for p in paint_command.split("|")]
                                 command_name, params = command_parts[0], command_parts[1:]
+                                print(f"Executing command: {command_name} with parameters: {params}")
                                 
                                 try:
                                     if command_name == "open_paint":
                                         result = await session.call_tool("open_paint", {})
                                         await asyncio.sleep(5)
                                         last_response = "Paint opened"
+                                        paint_iteration_response.append("Paint application opened successfully")
                                         
                                     elif command_name == "draw_rectangle":
                                         result = await session.call_tool("draw_rectangle", {
@@ -361,6 +347,7 @@ This is an automated email from your Math Agent.""",
                                         })
                                         await asyncio.sleep(2)
                                         last_response = "Rectangle drawn"
+                                        paint_iteration_response.append("Rectangle drawn at coordinates (780,380,1140,700)")
                                         
                                     elif command_name == "add_text_in_paint":
                                         result = await session.call_tool("add_text_in_paint", {
@@ -368,16 +355,24 @@ This is an automated email from your Math Agent.""",
                                         })
                                         await asyncio.sleep(2)
                                         last_response = "Text added"
+                                        paint_iteration_response.append(f"Text '{math_result}' added to Paint")
                                         break
                                         
                                 except Exception as e:
                                     print(f"Error executing paint command: {e}")
+                                    print(f"Failed at step: {paint_query}")
                                     break
                             
                             iteration += 1
+                            print(f"Paint operation {iteration} completed. Status: {last_response}")
                             await asyncio.sleep(2)
                         
-                        print("\n=== Paint Agent Execution Complete ===")
+                        print("\n=== Paint Agent Execution Summary ===")
+                        print(f"Total iterations completed: {iteration}/{max_paint_iterations}")
+                        print("Operations performed:")
+                        for i, operation in enumerate(paint_iteration_response, 1):
+                            print(f"{i}. {operation}")
+                        print("=== Paint Agent Execution Complete ===")
                         break
 
                     iteration += 1
